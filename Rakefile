@@ -94,5 +94,105 @@ namespace :gateways do
   desc 'Test that gateways allow SSL verify_peer'
   task :ssl_verify do
     SSLVerify.new.test_gateways
-  end 
+  end
+
+  desc 'Verify gateway interface'
+  task :verify do
+    require 'mocha/api'
+    include Mocha::API
+
+    gateway_class = ActiveMerchant::Billing::StripeGateway
+    gateway_instance = nil
+    credentials = gateway_class.credentials
+
+    # Test initialize
+    begin
+      gateway_instance = gateway_class.new(credentials.collect(&:to_s), :test => true)
+      puts "Initialized gateway"
+      gateway_initialized = true
+    rescue => ex
+      puts "Failed to initialize gateway"
+    end
+
+    money = 1200
+    defaults = {
+      :number => 4242424242424242,
+      :month => 9,
+      :year => Time.now.year + 1,
+      :first_name => 'Longbob',
+      :last_name => 'Longsen',
+      :verification_value => '123',
+      :brand => 'visa'
+    }
+
+    creditcard = ActiveMerchant::Billing::CreditCard.new(defaults)
+    address = {
+      :name     => 'Jim Smith',
+      :address1 => '1234 My Street',
+      :address2 => 'Apt 1',
+      :company  => 'Widgets Inc',
+      :city     => 'Ottawa',
+      :state    => 'ON',
+      :zip      => 'K1C2N6',
+      :country  => 'CA',
+      :phone    => '(555)555-5555',
+      :fax      => '(555)555-6666'
+    }
+
+    options = {:order_id =>'1', :billing_address => address, :description =>'Store Purchase'}
+
+    customer = "magic"
+    authorization = "auth"
+
+    GATEWAY_FEATURES = {
+      :purchase => [money, creditcard, options],
+      :void => [authorization, options],
+      :refund => [money, authorization, options],
+      :store => [creditcard, options],
+      :unstore => [customer, options],
+      :update => [customer, creditcard, options]
+    }
+
+    # Test features
+    features = gateway_class.public_instance_methods - Object.public_instance_methods - ActiveMerchant::Billing::Gateway.public_instance_methods - credentials
+
+    puts "No features? Are you sure?" if features.empty?
+
+    unsupported_features = gateway_class.has_features - GATEWAY_FEATURES.keys
+
+    puts "Unsupported features: #{unsupported_features}" unless unsupported_features.empty?
+
+    extra_methods = features - (gateway_class.has_features - unsupported_features)
+
+    puts "Unnecessary public methods: #{extra_methods}" unless extra_methods.empty?
+
+    missing_implementations = (GATEWAY_FEATURES.keys & gateway_class.has_features) - features
+
+    puts "Missing feature implementations: #{missing_implementations}" unless missing_implementations.empty?
+
+    implemented_features = GATEWAY_FEATURES.keys & features
+
+    gateway_instance.class.class_eval(<<-CODE)
+      def commit(*args); end
+    CODE
+    implemented_features.each do |feature|
+      arguments = GATEWAY_FEATURES[feature]
+      arg_length = gateway_instance.method(feature).arity
+      if arg_length > 0
+        puts "Feature '#{feature}' last argument should be optional options hash."
+      end
+
+      if arg_length.abs != arguments.length
+        puts "Feature '#{feature}' does not take the correct number of arguments. Expected #{arguments.length} was #{arg_length.abs}"
+        next
+      end
+
+      begin
+        gateway_instance.send(feature, *arguments)
+        puts "Feature '#{feature}' was sucessful."
+      rescue => ex
+        puts "Feature '#{feature}' failed. #{ex.message} #{ex.backtrace.join('\n\n')}"
+      end
+    end
+  end
 end

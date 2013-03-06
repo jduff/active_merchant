@@ -92,8 +92,9 @@ module ActiveMerchant #:nodoc:
 
       class_attribute :homepage_url
       class_attribute :display_name
-
       class_attribute :test_url, :live_url
+      class_attribute :has_features
+      class_attribute :credentials
 
       class_attribute :abstract_class
 
@@ -124,8 +125,9 @@ module ActiveMerchant #:nodoc:
       #
       # See the documentation for the gateway you will be using to make sure there are no other
       # required options.
-      def initialize(options = {})
-        @options = options
+      def initialize(*args)
+        @options = args.extract_options!
+        set_credentials(args)
       end
 
       # Are we running in test mode?
@@ -171,6 +173,17 @@ module ActiveMerchant #:nodoc:
       def requires_start_date_or_issue_number?(credit_card)
         return false if card_brand(credit_card).blank?
         DEBIT_CARDS.include?(card_brand(credit_card).to_sym)
+      end
+
+      private
+
+      def set_credentials(credentials)
+        raise ArgumentError.new("Invalid number of credentials for #{self.class.display_name}, requires #{self.class.credentials.join(', ')}.") unless credentials.length == self.class.credentials.length
+
+        self.class.credentials.each_with_index do |cred, index|
+          instance_variable_set(:"@#{cred}", credentials[index])
+          self.class.send(:attr_reader, :"#{cred}")
+        end
       end
     end
   end

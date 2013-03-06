@@ -3,37 +3,18 @@ require 'json'
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
     class StripeGateway < Gateway
-      self.live_url = 'https://api.stripe.com/v1/'
-
-      AVS_CODE_TRANSLATOR = {
-        'line1: pass, zip: pass' => 'Y',
-        'line1: pass, zip: fail' => 'A',
-        'line1: pass, zip: unchecked' => 'B',
-        'line1: fail, zip: pass' => 'Z',
-        'line1: fail, zip: fail' => 'N',
-        'line1: unchecked, zip: pass' => 'P',
-        'line1: unchecked, zip: unchecked' => 'I'
-      }
-
-      CVC_CODE_TRANSLATOR = {
-        'pass' => 'M',
-        'fail' => 'N',
-        'unchecked' => 'P'
-      }
-
-      self.supported_countries = ['US', 'CA']
-      self.default_currency = 'USD'
-      self.money_format = :cents
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :diners_club]
-
+      self.live_url     = 'https://api.stripe.com/v1/'
       self.homepage_url = 'https://stripe.com/'
       self.display_name = 'Stripe'
 
-      def initialize(options = {})
-        requires!(options, :login)
-        @api_key = options[:login]
-        super
-      end
+      self.supported_countries = %w(US CA)
+      self.default_currency    = 'USD'
+      self.money_format        = :cents
+      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :diners_club]
+
+      self.has_features        = [:purchase, :void, :refund, :store, :unstore, :update]
+
+      self.credentials         = [:api_key]
 
       # To create a charge on a card or a token, call
       #
@@ -237,6 +218,22 @@ module ActiveMerchant #:nodoc:
           }
         }
       end
+
+      AVS_CODE_TRANSLATOR = {
+        'line1: pass, zip: pass' => 'Y',
+        'line1: pass, zip: fail' => 'A',
+        'line1: pass, zip: unchecked' => 'B',
+        'line1: fail, zip: pass' => 'Z',
+        'line1: fail, zip: fail' => 'N',
+        'line1: unchecked, zip: pass' => 'P',
+        'line1: unchecked, zip: unchecked' => 'I'
+      }
+
+      CVC_CODE_TRANSLATOR = {
+        'pass' => 'M',
+        'fail' => 'N',
+        'unchecked' => 'P'
+      }
     end
   end
 end
